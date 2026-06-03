@@ -5,8 +5,6 @@
   <img src="https://img.shields.io/badge/Retriever-NAMAA-green?style=flat-square" />
   <img src="https://img.shields.io/badge/Reranker-GATE--Crossencoder-orange?style=flat-square" />
   <img src="https://img.shields.io/badge/Language-Arabic-red?style=flat-square" />
-  <img src="https://img.shields.io/badge/XAI-yellow?style=flat-square" />
-  <img src="https://img.shields.io/badge/RID-brown?style=flat-square" />
   <img src="https://img.shields.io/badge/Domain-Islamic%20QA-purple?style=flat-square" />
 </p>
 
