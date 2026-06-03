@@ -1,276 +1,127 @@
-# Explainable Islamic Question Answering system
-Evidence-grounded Arabic QA combining generative reasoning with Retrieval-In-Decoder verification over Quran and Hadith corpora.
+# Explainable Islamic Question Answering System
+
 <p align="center">
-  <img src="https://img.shields.io/badge/Model-Qwen2.5--7B--Instruct-blue?style=flat-square" />
-  <img src="https://img.shields.io/badge/Retriever-NAMAA-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/Reranker-GATE--Crossencoder-orange?style=flat-square" />
-  <img src="https://img.shields.io/badge/Language-Arabic-red?style=flat-square" />
-  <img src="https://img.shields.io/badge/Domain-Islamic%20QA-purple?style=flat-square" />
+  <img src="https://img.shields.io/badge/Generator-Qwen2.5--7B--Instruct-6C47C4?style=flat-square&logo=huggingface&logoColor=white" />
+  <img src="https://img.shields.io/badge/Retriever-NAMAA-1D9E75?style=flat-square" />
+  <img src="https://img.shields.io/badge/Reranker-GTE%20CrossEncoder-E07B2A?style=flat-square" />
+  <img src="https://img.shields.io/badge/Language-Arabic-D85A30?style=flat-square" />
+  <img src="https://img.shields.io/badge/Strategy-Retrieval--In--Decoder-3478D4?style=flat-square" />
+  <img src="https://img.shields.io/badge/Domain-Islamic%20QA-7F77DD?style=flat-square" />
+</p>
+
+<p align="center">
+  🕌 &nbsp;Evidence-grounded Arabic QA combining generative reasoning with Retrieval-In-Decoder verification over&nbsp; 📖 &nbsp;Quran and Hadith corpora.
 </p>
 
 ---
 
-
 ## Overview
 
-**Explainable Islamic Question Answering System** is an evidence-grounded Arabic QA framework that combines generative reasoning with retrieval-based evidence verification.
+**Explainable Islamic Question Answering System** is an evidence-grounded Arabic QA framework. Unlike traditional Retrieval-Augmented Generation (RAG), retrieval is not performed before generation. Instead, the language model first generates an answer and proposes supporting Islamic evidence inside special tags:
 
-The system integrates:
-
-* **Qwen2.5-7B-Instruct** as the reasoning and answer generation model.
-* **NAMAA Retriever** for semantic retrieval over Quran and Hadith corpora.
-* **GTE-TYDI-QUQA-HAQA CrossEncoder** for passage reranking.
-* **GPT-OSS-120B** for semantic query extraction.
-* **FAISS** for efficient dense retrieval.
-
-Unlike traditional Retrieval-Augmented Generation (RAG), retrieval is not performed before generation. Instead, the language model first generates an answer and proposes supporting Islamic evidence inside special evidence tags:
-
-```text
+```
 [STA] ... [END]
 ```
 
-When such evidence is generated, the system intercepts the decoding process, extracts a semantic search query from the generated text, retrieves relevant Quranic verses and Hadith narrations, reranks the candidates, and replaces the generated evidence with authenticated retrieved passages whenever retrieval confidence exceeds a predefined threshold.
+When such evidence is generated, the system intercepts the decoding process, extracts a semantic search query, retrieves relevant Quranic verses and Hadith narrations, reranks the candidates, and replaces the generated evidence with authenticated retrieved passages whenever retrieval confidence exceeds a predefined threshold.
 
-This Retrieval-In-Decoder (RID) strategy allows the model to preserve its reasoning capabilities while grounding religious evidence in trusted Islamic sources, resulting in more explainable and trustworthy answers.
-
+This **Retrieval-In-Decoder (RID)** strategy allows the model to preserve its reasoning capabilities while grounding religious evidence in trusted Islamic sources.
 
 ---
 
 ## Key Features
 
-- **Retrieval-In-Decoder Evidence Verification** -A novel decoding-time retrieval strategy is implemented to verify generated religious evidence during answer generation rather than before generation.
-- **Hallucination Prevention** — Generated Islamic texts are automatically intercepted and replaced with retrieved, verified passages.
-- **Dual-Corpus Retrieval** — Indexes both the Holy Quran (QPC v1.1) and Sahih Al-Bukhari Hadith separately.
-- **Retrieval-Interleaved Decoding (RID)** — Real-time token-level intervention during generation.
-- **Cross-Encoder Reranking** — Top retrieved passages are re-scored for relevance before injection.
-- **Semantic Query Extraction** — Uses an LLM to distill a search query from raw generated text before retrieval.
+| Feature | Description |
+|---|---|
+| 🛡️ **Hallucination prevention** | Generated Islamic texts are intercepted and replaced with retrieved, verified passages during decoding |
+| 📖 **Dual-corpus retrieval** | Indexes both the Holy Quran (QPC v1.1) and Sahih Al-Bukhari Hadith in separate FAISS indexes |
+| ⚙️ **Retrieval-In-Decoder** | Real-time token-level intervention during generation — not before or after |
+| 🔽 **Cross-encoder reranking** | Top passages are re-scored for relevance before injection using a fine-tuned CrossEncoder |
+| 🔍 **Semantic query extraction** | An LLM distills a concise Arabic search query from raw generated evidence text |
+| 💡 **Explainable answers** | Every answer is grounded with cited Quranic verses or Hadith narrations with source references |
 
 ---
 
+## Architecture
 
-
----
-
-## Methodology
-
-The proposed Explainable Islamic Question Answering system follows a five-stage evidence-grounding pipeline consisting of **Fact Detection**, **Search Query Extraction**, **Dense Retrieval**, **Cross-Encoder Reranking**, and **Retrieval-In-Decoder (RID)**. These components work together to verify generated Islamic evidence and ensure that final explanations are grounded in authentic Quranic and Hadith sources.
-
-### 1. Fact Detection
-
-The first stage is responsible for detecting when the language model attempts to generate a religious citation or supporting evidence.
-
-During decoding, the model is constrained to place all religious evidence inside special tags:
-
-```text
-[STA] ... [END]
-```
-
-The RID controller continuously monitors the generated output token-by-token.
-
-When the opening tag:
-
-```text
-[STA]
-```
-
-is detected, the system enters evidence collection mode and begins storing all generated tokens.
-
-Collection continues until:
-
-```text
-[END]
-```
-
-is generated.
-
-The collected text is treated as the model's proposed religious evidence and becomes the input to the verification pipeline.
-
-```text
-Generated Output
-       ↓
-Detect [STA]
-       ↓
-Collect Evidence
-       ↓
-Detect [END]
-       ↓
-Evidence Candidate
-```
-
-This stage identifies factual religious claims that require verification before being included in the final answer.
+![Architecture](images/architecture.jpeg)
 
 ---
 
-### 2. Search Query Extraction
+## Five-Stage Pipeline
 
-The generated evidence may contain unnecessary wording, incomplete references, or hallucinated content.
+```
+┌──────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────┐    ┌──────────────┐
+│  1. Fact     │    │  2. Query        │    │  3. Dense        │    │  4. Cross-   │    │  5. RID      │
+│  Detection   │───▶│  Extraction      │───▶│  Retrieval       │───▶│  Encoder     │───▶│  Injection   │
+│              │    │                  │    │                  │    │  Reranking   │    │              │
+│ [STA]…[END]  │    │  GPT-OSS-120B    │    │  NAMAA + FAISS   │    │  CrossEncoder│    │ threshold 0.7│
+└──────────────┘    └──────────────────┘    └──────────────────┘    └──────────────┘    └──────────────┘
+```
 
-To improve retrieval quality, the collected evidence is converted into a concise semantic search query using **GPT-OSS-120B**.
+### Stage 1 — Fact Detection
 
-The query extraction model receives the generated evidence and produces a short Arabic query that captures its core meaning.
+During decoding, the model places all religious evidence inside special tags. The RID controller monitors output token-by-token:
+
+1. Detects opening `[STA]` tag → enters evidence collection mode
+2. Collects all generated tokens
+3. Detects closing `[END]` tag → evidence candidate is ready for verification
+
+### Stage 2 — Search Query Extraction
+
+The collected evidence is converted into a concise semantic search query using **GPT-OSS-120B**.
+
+```
+Generated Evidence → GPT-OSS-120B → Semantic Search Query
 
 Example:
-
-Generated Evidence:
-
-```text
-بني الإسلام على خمس شهادة أن لا إله إلا الله...
+  Input:  "بني الإسلام على خمس شهادة أن لا إله إلا الله..."
+  Output: "أركان الإسلام الخمسة"
 ```
 
-Extracted Query:
+### Stage 3 — Dense Retrieval
 
-```text
-أركان الإسلام الخمسة
-```
-
-```text
-Generated Evidence
-        ↓
-GPT-OSS-120B
-        ↓
-Semantic Search Query
-```
-
-This step improves retrieval effectiveness by focusing on semantic intent rather than exact lexical overlap.
-
----
-
-### 3. Dense Retrieval
-
-The extracted query is encoded using the **NAMAA Retriever**, a fine-tuned Arabic dense retrieval model.
-
-Both Quranic verses and Hadith narrations are represented as dense embeddings and indexed using FAISS.
-
-The system performs independent retrieval from:
-
-* Quran Index
-* Hadith Index
-
-Retrieval configuration:
+The extracted query is encoded using the **NAMAA Retriever** and searched against two FAISS indexes:
 
 | Corpus | Top-K |
-| ------ | ----- |
+|--------|-------|
 | Quran  | 50    |
 | Hadith | 20    |
 
 Retrieved candidates from both corpora are merged into a unified candidate pool.
 
-```text
-Semantic Query
-       ↓
-NAMAA Retriever
-       ↓
-Dense Embedding
-       ↓
-FAISS Search
-       ↓
-Top-50 Quran Passages
-Top-20 Hadith Passages
-       ↓
-Merged Candidate Set
+### Stage 4 — Cross-Encoder Reranking
+
+All retrieved candidates are reranked using the **GTE-TYDI-QUQA-HAQA CrossEncoder**:
+
+- Evaluates `(Query, Passage)` pairs and produces relevance scores
+- Filters out passages with score below `0.15`
+- Sorts remaining candidates by relevance score
+- Selects the highest-ranked passage as the primary evidence candidate
+
+### Stage 5 — Retrieval-In-Decoder (RID)
+
+The final stage performs evidence verification and replacement during generation:
+
 ```
-
-This stage maximizes recall by collecting potentially relevant evidences from both Islamic sources.
-
----
-
-### 4. Cross-Encoder Reranking
-
-Dense retrieval provides high recall but may return passages that are only partially relevant.
-
-To improve precision, all retrieved candidates are reranked using the **GTE-TYDI-QUQA-HAQA CrossEncoder**.
-
-For each candidate, the reranker evaluates:
-
-```text
-(Query, Passage)
-```
-
-and produces a relevance score.
-
-Passages with scores below:
-
-```text
-0.15
-```
-
-are removed.
-
-The remaining candidates are sorted by relevance score, and the highest-ranked passage is selected as the primary evidence candidate.
-
-```text
-Retrieved Candidates
-         ↓
-CrossEncoder
-         ↓
-Relevance Scores
-         ↓
-Filter Low Scores
-         ↓
 Top Ranked Evidence
+        │
+        ▼
+  Confidence Check
+        │
+  ┌─────┴──────┐
+  │            │
+score ≥ 0.7  score < 0.7
+  │            │
+  ▼            ▼
+Replace      Keep
+Evidence     Generated
+(verified)   Evidence
 ```
 
-This stage improves evidence quality by considering deeper semantic relationships between the query and candidate passages.
+**High confidence (score ≥ 0.7):** Removes generated evidence and injects the retrieved authenticated passage.
 
----
-
-### 5. Retrieval-In-Decoder (RID)
-
-The final stage performs evidence verification and replacement during generation.
-
-The highest-ranked passage produced by the reranker is evaluated against the RID confidence threshold:
-
-```text
-threshold = 0.7
-```
-
-#### High-Confidence Retrieval
-
-If:
-
-```text
-best_score ≥ 0.7
-```
-
-the system:
-
-1. Removes the generated evidence.
-2. Injects the retrieved authenticated passage.
-3. Continues generation using the verified evidence.
-
-#### Low-Confidence Retrieval
-
-If:
-
-```text
-best_score < 0.7
-```
-
-the generated evidence is preserved and generation continues normally.
-
-```text
-Top Ranked Evidence
-         ↓
-Confidence Check
-         ↓
- ┌───────────────┬───────────────┐
- │ Score ≥ 0.7   │ Score < 0.7   │
- ▼               ▼
-Replace       Keep Generated
-Evidence      Evidence
-```
-
-This Retrieval-In-Decoder mechanism allows the language model to retain its reasoning capabilities while ensuring that supporting Quranic verses and Hadith narrations are grounded in trusted Islamic sources.
-
-
-- The combination of fact detection, semantic query extraction, dense retrieval, reranking, and Retrieval-In-Decoder verification produces explainable Islamic answers supported by authentic and relevant evidence.
-
----
-
-
-## Architecture
-
-![RID](images/architecture.jpeg)
+**Low confidence (score < 0.7):** Preserves the generated evidence and continues generation normally.
 
 ---
 
@@ -293,7 +144,7 @@ This Retrieval-In-Decoder mechanism allows the language model to retain its reas
 | **Quran** | `.tsv` (QPC v1.1) | `QH-QA-25_Subtask2_QPC_v1.1.tsv` |
 | **Hadith** | `.jsonl` | `QH-QA-25_Subtask2_Sahih-Bukhari_v1.0.jsonl` |
 
-Hadith text is preprocessed by stripping Arabic diacritics (tashkeel) using Unicode range `\u064B–\u0652` and `\u0670`.
+> Hadith text is preprocessed by stripping Arabic diacritics (tashkeel) using Unicode range `\u064B–\u0652` and `\u0670`.
 
 ---
 
@@ -389,7 +240,6 @@ The `[STA]...[END]` tags are stripped in the final output via `remove_sta_end_ta
 بُنِيَ الإسلامُ على خمسٍ: شهادةِ أنْ لا إلهَ إلَّا اللهُ وأنَّ محمَّداً رسولُ اللهِ، وإقامِ الصَّلاةِ، وإيتاءِ الزَّكاةِ، والحجِّ، وصومِ رمضانَ. (البخاري 8)
 
 شرح الأدلة:
-
 الحديث النبوي الشريف يذكر أركان الإسلام الخمسة بشكل صريح وواضح.
 
 الاجابة:
@@ -400,8 +250,6 @@ The `[STA]...[END]` tags are stripped in the final output via `remove_sta_end_ta
 4. الحج.
 5. صوم رمضان.
 ```
-
-
 
 ---
 
