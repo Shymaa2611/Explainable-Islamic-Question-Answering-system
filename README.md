@@ -1,5 +1,5 @@
 # Explainable Islamic Question Answering system
-
+Evidence-grounded Arabic QA combining generative reasoning with Retrieval-In-Decoder verification over Quran and Hadith corpora.
 <p align="center">
   <img src="https://img.shields.io/badge/Model-Qwen2.5--7B--Instruct-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/Retriever-NAMAA-green?style=flat-square" />
