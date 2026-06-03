@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/icon.png" width="120" height="120"/>
+</p>
+
 # Explainable Islamic Question Answering System
 
 <p align="center">
@@ -44,7 +48,7 @@ This **Retrieval-In-Decoder (RID)** strategy allows the model to preserve its re
 
 ---
 
-## Architecture
+## System Architecture
 
 ![Architecture](images/architecture.jpeg)
 
