@@ -1,6 +1,11 @@
 # Explainable Islamic Question Answering System
 
 <p align="center">
+   &nbsp;Evidence-grounded Arabic QA combining generative reasoning with Retrieval-In-Decoder verification over&nbsp;  &nbsp;Quran and Hadith corpora.
+</p>
+
+
+<p align="center">
   <img src="https://img.shields.io/badge/Generator-Qwen2.5--7B--Instruct-6C47C4?style=flat-square&logo=huggingface&logoColor=white" />
   <img src="https://img.shields.io/badge/Retriever-NAMAA-1D9E75?style=flat-square" />
   <img src="https://img.shields.io/badge/Reranker-GTE%20CrossEncoder-E07B2A?style=flat-square" />
@@ -9,9 +14,6 @@
   <img src="https://img.shields.io/badge/Domain-Islamic%20QA-7F77DD?style=flat-square" />
 </p>
 
-<p align="center">
-  🕌 &nbsp;Evidence-grounded Arabic QA combining generative reasoning with Retrieval-In-Decoder verification over&nbsp; 📖 &nbsp;Quran and Hadith corpora.
-</p>
 
 ---
 
