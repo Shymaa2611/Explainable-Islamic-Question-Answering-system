@@ -61,6 +61,7 @@ This **Retrieval and Rerank In Decoder (RRID)** strategy allows the model to pre
 │              │    │                  │    │                  │    │  Reranking   │    │              │
 │ [STA]…[END]  │    │  GPT-OSS-120B    │    │  NAMAA + FAISS   │    │  CrossEncoder│    │ threshold 0.7│
 └──────────────┘    └──────────────────┘    └──────────────────┘    └──────────────┘    └──────────────┘
+
 ```
 
 ### Stage 1 — Fact Detection
@@ -78,10 +79,11 @@ During decoding, the model places all religious evidence inside special tags. Th
 
 The collected evidence is converted into a concise semantic search query using **GPT-OSS-120B**.
 
-```
+
 Generated Evidence → GPT-OSS-120B → Semantic Search Query
 
 ![Semantic Search Query](images/sementicQuery.png)
+
 
 
 ### Stage 3 — Dense Retrieval
