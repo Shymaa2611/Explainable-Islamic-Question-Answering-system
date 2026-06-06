@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">TAHQIQ</h1>
 <p align="center">
-   &nbsp;Retrieval and Rerank in Decoder for Explainable and Evidence-Grounded Islamic Question Answering&nbsp;  &nbsp;Quran and Hadith corpora.
+   &nbsp;Retrieval and Rerank in Decoder for Explainable and Evidence-Grounded Islamic Question Answering.
 </p>
 
 
