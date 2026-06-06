@@ -2,10 +2,10 @@
   <img src="images/icon.png" width="120" height="120"/>
 </p>
 
-# Explainable Islamic Question Answering System
+# TAHQIQ:etrieval and Rerank in Decoder for Explainable and Evidence-Grounded Islamic Question Answering
 
 <p align="center">
-   &nbsp;Evidence-grounded Arabic QA combining generative reasoning with Retrieval-In-Decoder verification over&nbsp;  &nbsp;Quran and Hadith corpora.
+   &nbsp;Evidence-grounded Arabic QA combining generative reasoning with Retrieval and Rerank In Decoder verification over&nbsp;  &nbsp;Quran and Hadith corpora.
 </p>
 
 
@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Retriever-NAMAA-1D9E75?style=flat-square" />
   <img src="https://img.shields.io/badge/Reranker-GTE%20CrossEncoder-E07B2A?style=flat-square" />
   <img src="https://img.shields.io/badge/Language-Arabic-D85A30?style=flat-square" />
-  <img src="https://img.shields.io/badge/Strategy-Retrieval--In--Decoder-3478D4?style=flat-square" />
+  <img src="https://img.shields.io/badge/Strategy-Retrieval--and--Rerank--In--Decoder-3478D4?style=flat-square" />
   <img src="https://img.shields.io/badge/Domain-Islamic%20QA-7F77DD?style=flat-square" />
 </p>
 
@@ -23,7 +23,7 @@
 
 ## Overview
 
-**Explainable Islamic Question Answering System** is an evidence-grounded Arabic QA framework. Unlike traditional Retrieval-Augmented Generation (RAG), retrieval is not performed before generation. Instead, the language model first generates an answer and proposes supporting Islamic evidence inside special tags:
+**TAHQIQ** is an evidence-grounded Arabic QA framework. Unlike traditional Retrieval-Augmented Generation (RAG), retrieval is not performed before generation. Instead, the language model first generates an answer and proposes supporting Islamic evidence inside special tags:
 
 ```
 [STA] ... [END]
@@ -31,7 +31,7 @@
 
 When such evidence is generated, the system intercepts the decoding process, extracts a semantic search query, retrieves relevant Quranic verses and Hadith narrations, reranks the candidates, and replaces the generated evidence with authenticated retrieved passages whenever retrieval confidence exceeds a predefined threshold.
 
-This **Retrieval-In-Decoder (RID)** strategy allows the model to preserve its reasoning capabilities while grounding religious evidence in trusted Islamic sources.
+This **Retrieval and Rerank In Decoder (RRID)** strategy allows the model to preserve its reasoning capabilities while grounding religious evidence in trusted Islamic sources.
 
 ---
 
@@ -41,7 +41,7 @@ This **Retrieval-In-Decoder (RID)** strategy allows the model to preserve its re
 |---|---|
 | 🛡️ **Hallucination prevention** | Generated Islamic texts are intercepted and replaced with retrieved, verified passages during decoding |
 | 📖 **Dual-corpus retrieval** | Indexes both the Holy Quran (QPC v1.1) and Sahih Al-Bukhari Hadith in separate FAISS indexes |
-| ⚙️ **Retrieval-In-Decoder** | Real-time token-level intervention during generation — not before or after |
+| ⚙️ **Retrieval and Rerank In Decoder** | Real-time token-level intervention during generation — not before  |
 | 🔽 **Cross-encoder reranking** | Top passages are re-scored for relevance before injection using a fine-tuned CrossEncoder |
 | 🔍 **Semantic query extraction** | An LLM distills a concise Arabic search query from raw generated evidence text |
 | 💡 **Explainable answers** | Every answer is grounded with cited Quranic verses or Hadith narrations with source references |
@@ -58,7 +58,7 @@ This **Retrieval-In-Decoder (RID)** strategy allows the model to preserve its re
 
 ```
 ┌──────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────┐    ┌──────────────┐
-│  1. Fact     │    │  2. Query        │    │  3. Dense        │    │  4. Cross-   │    │  5. RID      │
+│  1. Fact     │    │  2. Query        │    │  3. Dense        │    │  4. Cross-   │    │  5.RRID      │
 │  Detection   │───▶│  Extraction      │───▶│  Retrieval       │───▶│  Encoder     │───▶│  Injection   │
 │              │    │                  │    │                  │    │  Reranking   │    │              │
 │ [STA]…[END]  │    │  GPT-OSS-120B    │    │  NAMAA + FAISS   │    │  CrossEncoder│    │ threshold 0.7│
@@ -73,17 +73,18 @@ During decoding, the model places all religious evidence inside special tags. Th
 2. Collects all generated tokens
 3. Detects closing `[END]` tag → evidence candidate is ready for verification
 
-### Stage 2 — Search Query Extraction
+![Fact Detection](images/factExample.jpeg)
+
+
+### Stage 2 — Semantic Search Query Extraction
 
 The collected evidence is converted into a concise semantic search query using **GPT-OSS-120B**.
 
 ```
 Generated Evidence → GPT-OSS-120B → Semantic Search Query
 
-Example:
-  Input:  "بني الإسلام على خمس شهادة أن لا إله إلا الله..."
-  Output: "أركان الإسلام الخمسة"
-```
+![Semantic Search Query](images/sementicQuery.png)
+
 
 ### Stage 3 — Dense Retrieval
 
@@ -182,11 +183,10 @@ Huggingface_API=your_hf_api_key
 ### Basic Inference
 
 ```python
-from namaa import RID, remove_sta_end_tags
 
 question = "ما هى اركان الاسلام؟"
 
-answer = RID(
+answer = RRID(
     question,
     max_steps=512,
     threshold=0.7
@@ -195,7 +195,7 @@ answer = RID(
 print(remove_sta_end_tags(answer))
 ```
 
-### RID Parameters
+### RRID Parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|

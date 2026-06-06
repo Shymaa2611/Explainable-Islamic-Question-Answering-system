@@ -384,9 +384,9 @@ def remove_sta_end_tags(text: str):
     return text.strip()
 
 
-# RID
+# Retrieval and Rerank in decoder
 
-def RID(
+def RRID(
     question: str,
     max_steps: int = 512,
     threshold: float = 0.7,
@@ -555,7 +555,7 @@ def RID(
 
 question = "ما هى اركان الاسلام ؟"
 
-explanation = RID(
+explanation = RRID(
     question,
     max_steps=512,
     threshold=0.7
