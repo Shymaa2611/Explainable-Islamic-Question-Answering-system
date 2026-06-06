@@ -1,9 +1,7 @@
 <p align="center">
   <img src="images/icon.png" width="120" height="120"/>
 </p>
-
-# TAHQIQ
-
+<h1 align="center">TAHQIQ</h1>
 <p align="center">
    &nbsp;Retrieval and Rerank in Decoder for Explainable and Evidence-Grounded Islamic Question Answering&nbsp;  &nbsp;Quran and Hadith corpora.
 </p>
