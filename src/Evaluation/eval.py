@@ -1,198 +1,347 @@
-import string
-import pandas as pd
-from bert_score import BERTScorer
-import torch
+# !pip install -q bert-score transformers sentencepiece nltk pandas torch
+
+# Imports
+
+import re
 import numpy as np
+import pandas as pd
+import torch
+
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from bert_score import score as bert_score
 from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
-from huggingface_hub import snapshot_download
-
-class EvaluationMetrics:
-    def __init__(self):
-        MODEL_NAME = "aubmindlab/bert-base-arabertv02"
-        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-        self.model = AutoModel.from_pretrained(MODEL_NAME)
-        self.model.eval()
-
-        self.scorer = BERTScorer(
-        model_type="aubmindlab/bert-base-arabertv02",
-        num_layers=12,
-        lang="ar"
-        )
 
 
-    def load_model(self):
-        snapshot_download(
-        repo_id="SeragAmin/NAMAA-retriever-cosine-final_60-90",
-        repo_type="model",
-        local_dir="retriever_model",
-        allow_patterns="NAMAA-retriever-cosine-final_contrastive_ara_top70/checkpoint-1985/*" )
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model_path = "retriever_model/NAMAA-retriever-cosine-final_contrastive_ara_top70/checkpoint-1985"
-        retrieval_model = SentenceTransformer(model_path, device=device)
-        return retrieval_model
+# Configuration
 
-    # load test data
-    def load_data_csv(self,file_path):
-        df = pd.read_csv(file_path)
-        data = []
+CSV_FILE = "data/Evaluation Data/Islamic_classification.csv"
 
-        for _, row in df.iterrows():
-            data.append({
-                "question": str(row.get("question", "")),
-                "answer": str(row.get("answer", "")),
-                "generatedAnswer":str(row.get("generatedAnswer"))
-            })
+REFERENCE_COL = "التفسير"
+PREDICTION_COL = "التوقع"
+CATEGORY_COL = "الفئة"
 
-        return data
-    
-    def normalize_text(self,s):
-        """remove punctuation, some stopwords and extra whitespace."""
-        def remove_stopWords(text):
-            terms = []
-            stopWords = {'من', 'الى', 'إلى', 'عن', 'على', 'في', 'حتى'}
-            for term in text.split():
-                if term not in stopWords:
-                    terms.append(term)
-            return " ".join(terms)
+MODEL_NAME = "aubmindlab/bert-base-arabertv02"
 
-        def white_space_fix(text):
-            return ' '.join(text.split())
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        def remove_punc(text):
-            exclude = set(string.punctuation)
-            # Arabic punctuation
-            exclude.add('،')
-            exclude.add('؛')
-            exclude.add('؟')
-            return ''.join(ch for ch in text if ch not in exclude)
 
-        return white_space_fix(remove_stopWords(remove_punc(s)))
+# Arabic Normalization
 
-    def mean_pooling(self,model_output, attention_mask):
-        token_embeddings = model_output.last_hidden_state
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        return torch.sum(token_embeddings * input_mask_expanded, dim=1) / torch.clamp(
-            input_mask_expanded.sum(dim=1), min=1e-9
-        )
+def normalize_text(text):
 
-    def encode(self,text):
-        encoded = self.tokenizer(
-            text,
+    if pd.isna(text):
+        return ""
+
+    text = str(text)
+
+    text = re.sub(r'[\u064B-\u0652\u0670]', '', text)
+    text = re.sub(r'ـ', '', text)
+
+    text = re.sub("[إأآا]", "ا", text)
+    text = re.sub("ى", "ي", text)
+    text = re.sub("ؤ", "و", text)
+    text = re.sub("ئ", "ي", text)
+
+    text = re.sub(r"[^\w\s]", " ", text)
+
+    text = " ".join(text.split())
+
+    return text.strip()
+
+
+# ROUGE-L
+
+def rouge_l_score(pred, gold):
+
+    pred_tokens = normalize_text(pred).split()
+    gold_tokens = normalize_text(gold).split()
+
+    m = len(gold_tokens)
+    n = len(pred_tokens)
+
+    if m == 0 or n == 0:
+        return 0.0
+
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+
+    for i in range(m):
+        for j in range(n):
+
+            if gold_tokens[i] == pred_tokens[j]:
+                dp[i + 1][j + 1] = dp[i][j] + 1
+            else:
+                dp[i + 1][j + 1] = max(
+                    dp[i][j + 1],
+                    dp[i + 1][j]
+                )
+
+    lcs = dp[m][n]
+
+    precision = lcs / n
+    recall = lcs / m
+
+    if precision + recall == 0:
+        return 0.0
+
+    return (
+        2 * precision * recall
+        /
+        (precision + recall)
+    )
+
+# BLEU-4
+
+smoothie = SmoothingFunction().method1
+
+def bleu4_score(pred, gold):
+
+    pred_tokens = normalize_text(pred).split()
+
+    gold_tokens = [
+        normalize_text(gold).split()
+    ]
+
+    if len(pred_tokens) == 0:
+        return 0.0
+
+    return sentence_bleu(
+        gold_tokens,
+        pred_tokens,
+        weights=(0.25, 0.25, 0.25, 0.25),
+        smoothing_function=smoothie
+    )
+
+
+# Load AraBERT
+
+print("Loading AraBERT...")
+
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = AutoModel.from_pretrained(MODEL_NAME)
+
+model.to(device)
+model.eval()
+
+
+# Mean Pooling
+
+def mean_pooling(model_output, attention_mask):
+
+    token_embeddings = model_output.last_hidden_state
+
+    mask = attention_mask.unsqueeze(-1).expand(
+        token_embeddings.size()
+    ).float()
+
+    return torch.sum(
+        token_embeddings * mask,
+        dim=1
+    ) / torch.clamp(
+        mask.sum(dim=1),
+        min=1e-9
+    )
+
+
+# Batch Embedding
+
+def encode_texts(texts, batch_size=16):
+
+    embeddings = []
+
+    for i in range(0, len(texts), batch_size):
+
+        batch = texts[i:i + batch_size]
+
+        encoded = tokenizer(
+            batch,
             padding=True,
             truncation=True,
             max_length=256,
             return_tensors="pt"
         )
+
+        encoded = {
+            k: v.to(device)
+            for k, v in encoded.items()
+        }
+
         with torch.no_grad():
-            output = self.model(**encoded)
-        embedding = self.mean_pooling(output, encoded["attention_mask"])
-        return embedding.numpy()
 
-    # cosine similarity metric
-    def cosine_sim(self,truth, prediction):
-        e1 = self.encode(truth)
-        e2 = self.encode(prediction)
-        return cosine_similarity(e1, e2)[0][0]
+            output = model(**encoded)
 
+            emb = mean_pooling(
+                output,
+                encoded["attention_mask"]
+            )
 
-    # bert score metric
-    def compute_bert_score(self,truth, prediction):
-        if truth == "" or prediction == "":
-            return 0.0, 0.0, 0.0
+            emb = torch.nn.functional.normalize(
+                emb,
+                p=2,
+                dim=1
+            )
 
-        P, R, F1 = self.scorer.score([prediction], [truth])
-
-        return (
-            float(P.mean().item()),
-            float(R.mean().item()),
-            float(F1.mean().item())
-        )
-    
-    # exact match metric
-    def exact_match_score(self,prediction, ground_truth):
-        if len(prediction) == 0: 
-            return 0
-        return (self.normalize_text(prediction) == self.normalize_text(ground_truth))
-  
-   # Embedding
-    def embedding(self,text):
-        endcoded_model=self.load_model()
-        embs = endcoded_model.encode(
-        text,
-        batch_size=64,
-        normalize_embeddings=True,
-        convert_to_numpy=True )
-
-        return embs
-
-    # preprocessing of hallucination
-    def hallucination_preprocessing(self,df_path): 
-        df = pd.read_json(df_path)
-        df["prediction"] = df["prediction"].fillna("").astype(str)
-        df["keypoints"] = df["keypoints"].apply(
-            lambda x: x if isinstance(x, list) else []
+        embeddings.append(
+            emb.cpu().numpy()
         )
 
-        df["keypoints"] = df["keypoints"].apply(
-            lambda lst: [str(kp) for kp in lst if kp is not None])
-        
-        all_predictions = df["prediction"].tolist()
-        all_keypoints = [kp for sublist in df["keypoints"] for kp in sublist]
-        pred_embs = self.embedding(all_predictions)
-        kp_embs=self.embedding(all_keypoints)
-        idx = 0
-        kp_embs_grouped = []
-        for sublist in df["keypoints"]:
-            kp_embs_grouped.append(kp_embs[idx: idx + len(sublist)])
-            idx += len(sublist)
-
-        df["Prediction_Embedding"] = list(pred_embs)
-        df["Keypoints_Embeddings"] = kp_embs_grouped
-
-        return df
-        
-    # calculate hallucination
-    def compute_hallucination_score(self,df_path, threshold=0.5):
-        df=self.hallucination_preprocessing(df_path)
-        total_hallucination = 0.0
-        n = len(df)
-        for _, row in df.iterrows():
-            pred = np.array(row["Prediction_Embedding"]).reshape(1, -1)
-            kps = np.array(row["Keypoints_Embeddings"])
-            if len(kps) == 0:
-                continue
-            sims = cosine_similarity(pred, kps)[0]
-            contradictions = np.sum(sims <= threshold)
-            total_hallucination += contradictions / len(kps)
-        return  total_hallucination/n
+    return np.vstack(embeddings)
 
 
+# Fairness
 
-   
+def fairness_gap(scores):
 
-def main():
-    metrics=EvaluationMetrics()
-    eval_data = metrics.load_data_csv("")
-    P_scores, R_scores, F1_scores , Cosine_Similarity = [], [], [], [] 
-    for item in eval_data:
-        truth = item["explanation"]
-        generated =item["generation"]
-        #question=item["question"]
-        p, r, f1 = metrics.compute_bert_score(truth, generated)
-        score = metrics.cosine_sim(truth, generated)
-    
-        P_scores.append(p)
-        R_scores.append(r)
-        F1_scores.append(f1)
-        Cosine_Similarity.append(score)
-    print(f"Precision: {sum(P_scores)/len(eval_data)}")
-    print(f"Recall:    {sum(R_scores)/len(eval_data)}")
-    print(f"F1 Score:  {sum(F1_scores)/len(eval_data)}")
-    print(f"Cosine_Similarity:  {sum(Cosine_Similarity)/len(eval_data)}")
-    hallucination_score= metrics.compute_hallucination_score("", threshold=0.5)
-    print("Hallucination Score:", hallucination_score)
+    return float(
+        np.max(scores)
+        -
+        np.min(scores)
+    )
 
-if __name__=="__main__":
-    main()
+def fairness_cv(scores):
+
+    scores = np.array(scores)
+
+    return float(
+        np.std(scores)
+        /
+        (np.mean(scores) + 1e-9)
+    )
+
+
+# Load CSV
+
+df = pd.read_csv(CSV_FILE)
+
+df[REFERENCE_COL] = df[REFERENCE_COL].astype(str)
+df[PREDICTION_COL] = df[PREDICTION_COL].astype(str)
+
+
+# Traditional Metrics (ROUGE & BLEU)
+
+ROUGE = []
+BLEU = []
+
+for _, row in df.iterrows():
+
+    gold = row[REFERENCE_COL]
+    pred = row[PREDICTION_COL]
+
+    ROUGE.append(
+        rouge_l_score(pred, gold)
+    )
+
+    BLEU.append(
+        bleu4_score(pred, gold)
+    )
+
+# BERTScore
+
+print("Calculating BERTScore...")
+
+preds = df[PREDICTION_COL].tolist()
+refs = df[REFERENCE_COL].tolist()
+
+P, R, F1 = bert_score(
+    preds,
+    refs,
+    num_layers=12,
+    model_type=MODEL_NAME,
+    lang="ar",
+    device=device
+)
+
+
+# Cosine Similarity
+
+print("Calculating AraBERT embeddings...")
+
+pred_embeddings = encode_texts(preds)
+gold_embeddings = encode_texts(refs)
+
+COSINE = []
+
+for p_emb, g_emb in zip(
+    pred_embeddings,
+    gold_embeddings
+):
+
+    COSINE.append(
+        float(
+            cosine_similarity(
+                p_emb.reshape(1, -1),
+                g_emb.reshape(1, -1)
+            )[0][0]
+        )
+    )
+
+
+# Save Metrics
+
+df["ROUGE_L"] = ROUGE
+df["BLEU_4"] = BLEU
+
+df["BERTScore_P"] = P.cpu().numpy()
+df["BERTScore_R"] = R.cpu().numpy()
+df["BERTScore_F1"] = F1.cpu().numpy()
+
+df["Cosine_Similarity"] = COSINE
+
+
+# Global Results
+
+print("\n" + "=" * 60)
+
+print(f"ROUGE-L:            {np.mean(ROUGE):.4f}")
+print(f"BLEU-4:             {np.mean(BLEU):.4f}")
+
+print(f"BERT Precision:     {P.mean().item():.4f}")
+print(f"BERT Recall:        {R.mean().item():.4f}")
+print(f"BERT F1:            {F1.mean().item():.4f}")
+
+print(f"Cosine Similarity:  {np.mean(COSINE):.4f}")
+
+print("=" * 60)
+
+
+# Fairness Evaluation
+
+if CATEGORY_COL in df.columns:
+
+    print("\nPER CATEGORY SCORES\n")
+
+    category_scores = (
+        df.groupby(CATEGORY_COL)["BERTScore_F1"]
+        .mean()
+        .sort_values(ascending=False)
+    )
+
+    print(category_scores)
+
+    gap = fairness_gap(
+        category_scores.values
+    )
+
+    cv = fairness_cv(
+        category_scores.values
+    )
+
+    print("\n" + "=" * 60)
+
+    print(f"Fairness Gap: {gap:.4f}")
+    print(f"Fairness CV:  {cv:.4f}")
+
+    print("=" * 60)
+
+
+# Export
+
+OUTPUT_FILE = "evaluation_results.csv"
+
+df.to_csv(
+    OUTPUT_FILE,
+    index=False,
+    encoding="utf-8-sig"
+)
+
+print(f"\nSaved: {OUTPUT_FILE}")
