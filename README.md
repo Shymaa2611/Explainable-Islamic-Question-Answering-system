@@ -2,10 +2,10 @@
   <img src="images/icon.png" width="120" height="120"/>
 </p>
 
-# TAHQIQ:etrieval and Rerank in Decoder for Explainable and Evidence-Grounded Islamic Question Answering
+# TAHQIQ
 
 <p align="center">
-   &nbsp;Evidence-grounded Arabic QA combining generative reasoning with Retrieval and Rerank In Decoder verification over&nbsp;  &nbsp;Quran and Hadith corpora.
+   &nbsp;Retrieval and Rerank in Decoder for Explainable and Evidence-Grounded Islamic Question Answering&nbsp;  &nbsp;Quran and Hadith corpora.
 </p>
 
 
