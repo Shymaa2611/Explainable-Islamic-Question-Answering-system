@@ -148,7 +148,7 @@ Evidence     Generated
 
 | Source | Format | Description |
 |---|---|---|
-| **Quran** | `.tsv` (QPC v1.1) | `QH-QA-25_Subtask2_QPC_v1.1.tsv` |
+| **Quran** | `.tsv`    | `QH-QA-25_Subtask2_QPC_v1.1.tsv` |
 | **Hadith** | `.jsonl` | `QH-QA-25_Subtask2_Sahih-Bukhari_v1.0.jsonl` |
 
 > Hadith text is preprocessed by stripping Arabic diacritics (tashkeel) using Unicode range `\u064B–\u0652` and `\u0670`.
